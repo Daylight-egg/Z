@@ -7,7 +7,8 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "dump": "node dump_schema.ts",
-    "sync": "node tavern_sync.mjs"
+    "sync": "node tavern_sync.mjs",
+    "deploy": "pnpm build && git add . && git commit -m \"deploy: fast update\" && git push"
   },
   "browserslist": [
     "defaults and partially supports es6-module"

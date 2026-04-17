@@ -2,7 +2,7 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import { teleportStyle } from '../../util/script';
 
-const BUTTON_NAME = '「目录与总结」';
+const BUTTON_NAME = '<i class="fa-solid fa-book-open"></i>';
 const ROOT_ID = 'contents-app-root';
 
 async function init() {
