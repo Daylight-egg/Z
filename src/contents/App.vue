@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, shallowRef, onMounted, watch, computed } from 'vue';
 import { loadPersistence, saveGlobalPersistence } from './logic/persistence';
 import { buildDirectory, jumpToFloor, type DirectoryItem } from './logic/directory';
 import { fetchModels, testAiConnection } from './logic/ai';
@@ -36,31 +36,113 @@ const initialSettings = {
         { id: 'pres-1', name: '总结标签提取', pattern: '<summary>([\\s\\S]*?)</summary>', captureGroup: 1, mode: 'include', enabled: true, isExpanded: false }
       ],
       promptMessages: [
-        { id: 'pm-1', name: '系统指令', role: 'system', content: `## 角色设定
-你是一位精通小说编排与叙事结构的文学解析助手。你的任务是分析提供的聊天片段，并将其组织成具有“卷 (Volume)”和“章 (Chapter)”层级感的动态目录。
+        { id: 'pm-1', name: '系统指令', role: 'system', content: `<role>
+你是一位深谙叙事结构与文学美感的编目师。你阅读连续的叙事文本，为每一楼层拟定标题、划分层级，最终输出一份具有小说质感的树状目录。
+</role>
 
-## 编排逻辑 (极其重要)
-1. **层级意识**：
-   - AI 现在可以完全自由决定键名和层级。
-   - **分级输出**：若需要输出多个层级的标题（如卷、章），请使用多个键，并为每个标题键附带一个 \`_level\` 字段明确指定层级。
-2. **拟定标题**：为每一楼层生成具有小说感的标题。
+<core_rules>
 
-## 输出格式要求 (必需)
-每一个输出块必须使用以下 XML 格式包裹，内部使用 YAML 键值对：
+<structure>
+目录是树状结构，通常分为两层。第一层是宏观单元（如"卷""折""Part"等），第二层是叙事单元（如"章""幕""其一"等）。
 
-<ai_directory floor="对应的楼层号">
-vol: "第一卷"
-vol_level: 1
-title: "第一章"
-title_level: 2
-summary: "综述内容..."
-</ai_directory>`, isExpanded: true },
-        { id: 'pm-2', name: '提取内容', role: 'user', content: '## 历史编排回顾 (上下文)\n{{context}}\n\n## 当前待解析楼层：\n{{messages}}', isExpanded: true }
+- 你需要自行设计层级的命名体系，使之契合故事的题材、时代与气质。
+- 层级名称、编号方式、命名语言风格完全由你决定，没有固定模板。
+- 当一个事件或场景跨越多个楼层时，使用"上/中/下"或"其一/其二/其三"等方式延续同一标题，而非强行拆分为不同章节。
+- 某一楼层可以同时触发多个层级变化——例如既是新卷的起点，又是新章的起点。
+
+以下是一些风格示例（仅供参考，不要局限于此）：
+
+| 故事气质 | 第一层示例 | 第二层示例 |
+|---------|-----------|-----------|
+| 古典/诗词调 | 卷一·临江仙 | 其一·暮雪初霁 |
+| 戏剧/舞台感 | 第一折 | 第一幕·灯灭之后 |
+| 西式/现代 | Part I: Southbound | Chapter 1 · No One Looked Back |
+| 悬疑/哥特 | 第一夜 | 第一刻·摆钟停在三点 |
+| 轻松/日常 | 春 | 第1话·冰箱里的最后一颗草莓 |
+</structure>
+
+<titling>
+为每个楼层拟写一个具有小说感的标题。标题应当：
+
+- 凝练而有画面感，能唤起对该段落核心意象或情绪的联想。
+- 风格与故事题材统一——古风故事可用词牌名、诗句化短语；现代故事可用口语短句、意象碎片；悬疑故事可用隐喻、倒置句式等。
+- 避免写成内容摘要，标题是"意象"而非"概括"。
+</titling>
+
+<prologue>
+为每个楼层撰写一句极短的序言（卷首语/题记）。序言一句符合当前故事氛围的文学短句，用于营造情绪或暗示走向。
+
+好的序言示例：
+- "风雪未歇，故人已至。"
+- "那扇门关上的时候，谁都没有回头。"
+- "所有的谎言都有保质期。"
+- "月色如旧，人事已非。"
+
+坏的序言示例（这些是摘要，不是序言）：
+- "本章讲述了主角与敌人的战斗。"
+- "两人在雨中重逢并和好。"
+</prologue>
+
+<segmentation>
+你需要自主判断何时分卷、何时分章：
+
+- **分卷的信号**：重大事件的终结或开启、时间线的大幅跳跃、核心关系的质变、叙事基调的明显转换。
+- **分章的信号**：场景切换、视角转移、一个小事件的完成、情绪的起落节点。
+- **延续（上/中/下）的信号**：同一场景、同一对话、同一事件仍在进行中，尚未抵达自然的停顿点。
+
+不要机械地每N个楼层分一次，也不要每个楼层都独立成章。完全依据叙事节奏来判断。
+</segmentation>
+
+</core_rules>
+
+<output_format>
+对每一个楼层输出一个 XML 块。内部使用 YAML 键值对，键名由你自行决定，但必须遵守以下规则：
+
+- 每个标题键必须附带一个对应的 \`_level\` 字段，值为整数，表示该标题在树状结构中的层级深度（1为最高层）。
+- 如果该楼层同时触发了多个层级的新标题（如新卷+新章），则在同一个块中输出多组标题键。
+- 如果该楼层没有触发上层变化，则只输出当前层级的标题键。
+- \`prologue\` 字段为该楼层的序言短句。
+
+示例（键名和内容风格仅为演示）：
+
+当某楼层同时开启新卷和新章时：
+<ai_directory floor="1">
+卷: "卷一·临江仙"
+卷_level: 1
+章: "其一·暮雪初霁"
+章_level: 2
+prologue: "风雪未歇，故人已至。"
+</ai_directory>
+
+当某楼层延续同一卷，仅为新章时：
+<ai_directory floor="5">
+章: "其三·孤灯照影（上）"
+章_level: 2
+prologue: "有些话说出口就碎了。"
+</ai_directory>
+
+当某楼层延续同一章（上/中/下）时：
+<ai_directory floor="6">
+章: "其三·孤灯照影（下）"
+章_level: 2
+prologue: "落幕无声。"
+</ai_directory>
+</output_format>`, isExpanded: true },
+        { id: 'pm-2', name: '提取内容', role: 'user', content: `<context>
+以下是此前已完成的编排记录，用于保持连贯性（卷号、章号、叙事进度等）。如果为空，则说明这是全新的开始。
+
+{{context}}
+</context>
+<task>
+以下是待解析的楼层内容。请通读全部楼层后，依据上述规则为每一个楼层生成对应的目录块。
+
+{{messages}}
+</task>`, isExpanded: true }
       ],
       moduleMapping: {
-        vol: { style: 'header', level: 1 },
-        title: { style: 'header', level: 2 },
-        summary: { style: 'block', level: 0 }
+        卷: { style: 'header', level: 1 },
+        章: { style: 'header', level: 2 },
+        prologue: { style: 'block', level: 0 }
       },
       contextFloorCount: 5,
       batchSize: 50,
@@ -91,8 +173,8 @@ const baseRules = ref([
 ]);
 
 const isSortAsc = ref(true);
-const directoryItems = ref<DirectoryItem[]>([]); // This will store basic regex results
-const aiDirectoryItems = ref<any[]>([]); // This will store AI generated results separately
+const directoryItems = shallowRef<DirectoryItem[]>([]); // This will store basic regex results
+const aiDirectoryItems = shallowRef<any[]>([]); // This will store AI generated results separately
 const searchQuery = ref('');
 
 // --- Filter & Sort states for Rules ---
@@ -175,16 +257,27 @@ const filteredDirectory = computed(() => {
 
 const availableModules = computed(() => {
   const keys = new Set<string>();
-  aiDirectoryItems.value.forEach(item => {
-    if (item.metadata) {
-      Object.keys(item.metadata).forEach(k => {
-        // 排除元数据中的层级和楼层控制字段
-        if (k !== 'floor' && k !== 'level') keys.add(k);
+  
+  // 1. 获取全量活跃消息
+  // @ts-ignore
+  const lastId = (typeof getLastMessageId !== 'undefined' ? getLastMessageId() : (window.parent as any).getLastMessageId?.() || 0);
+  // @ts-ignore
+  const allMessages = getChatMessages(`0-${lastId}`, { hide_state: 'unhidden' });
+
+  // 2. 扫描所有消息中的 one_ext_data
+  allMessages.forEach((msg: any) => {
+    const data = msg.data?.one_ext_data || msg.one_ext_data;
+    if (data) {
+      const blocks = Array.isArray(data) ? data : [data];
+      blocks.forEach(block => {
+        Object.keys(block).forEach(k => {
+          // 仅过滤掉绝对内置的 floor
+          if (k !== 'floor') keys.add(k);
+        });
       });
     }
   });
-  
-  // 保持一个稳定的排序，防止 UI 闪烁
+
   return Array.from(keys).sort();
 });
 
@@ -407,6 +500,12 @@ const dynamicAiStyles = computed(() => {
 });
 
 /**
+ * 根据层级和面板模式计算缩进样式
+ * 实现“剪裁缩进”：条目始终贴合屏幕边缘，层级越深，内侧缩短越多
+ */
+// --- (Removed getItemIndentStyle as part of CSS Performance Optimization) ---
+
+/**
  * 获取样式对应的图标
  */
 const getStyleIcon = (style: string) => {
@@ -585,7 +684,7 @@ const getExtractedContent = (startFloor?: number, endFloor?: number) => {
 
     // 2. 通过官方接口获取聊天数据
     // @ts-ignore
-    let chat = (typeof getChatMessages !== 'undefined' ? getChatMessages(`${rangeStart}-${rangeEnd}`) : (window.parent as any).getChatMessages?.(`${rangeStart}-${rangeEnd}`));
+    let chat = (typeof getChatMessages !== 'undefined' ? getChatMessages(`${rangeStart}-${rangeEnd}`, { role: 'assistant' }) : (window.parent as any).getChatMessages?.(`${rangeStart}-${rangeEnd}`, { role: 'assistant' }));
     
     if (!chat || chat.length === 0) return '(尚未捕捉到任何聊天内容)';
 
@@ -642,7 +741,7 @@ const getRecentSummaries = (n: number, beforeFloor: number) => {
     if (beforeFloor === 0) return '(无前文总结)';
 
     // @ts-ignore
-    const allMessages = getChatMessages(`0-${maxBefore}`);
+    const allMessages = getChatMessages(`0-${maxBefore}`, { role: 'assistant' });
     if (!allMessages || allMessages.length === 0) return '(无前文总结)';
 
     const summarized = allMessages
@@ -721,7 +820,7 @@ const triggerAiSummary = async (isManual = true) => {
     // @ts-ignore
     const lastId = (typeof getLastMessageId !== 'undefined' ? getLastMessageId() : (window.parent as any).getLastMessageId?.() || 0);
     // @ts-ignore
-    const allMessages = getChatMessages(`0-${lastId}`);
+    const allMessages = getChatMessages(`0-${lastId}`, { role: 'assistant' });
     if (!allMessages || allMessages.length === 0) return;
 
     // 识别尚未总结的楼层
@@ -830,9 +929,23 @@ const executeSummaryBatch = async (startFloor: number, endFloor: number) => {
     for (const block of parsedDataBlocks) {
       // 自动检测新出现的模块并默认开启
       Object.keys(block).forEach(key => {
-        if (!['floor', 'level', 'title'].includes(key) && !settings.value.aiConfig.visibleModules.includes(key)) {
+        if (key === 'floor' || key === 'level' || key.endsWith('_level')) return;
+
+        // 自动发现新 Key
+        if (!settings.value.aiConfig.visibleModules.includes(key)) {
           settings.value.aiConfig.visibleModules.push(key);
           hasNewModules = true;
+        }
+
+        // 自动识别标题逻辑：如果 AI 输出了 key_level，说明这大概率是个目录项
+        if (block[key + '_level'] !== undefined) {
+          if (!settings.value.aiConfig.moduleMapping[key]) {
+             settings.value.aiConfig.moduleMapping[key] = { 
+               style: 'header', 
+               level: parseInt(block[key + '_level']) || 2 
+             };
+             hasNewModules = true;
+          }
         }
       });
       await saveAiDataToChat(block.floor, block);
@@ -981,7 +1094,7 @@ const checkAutoRefresh = () => {
     // @ts-ignore
     const lastId = (typeof getLastMessageId !== 'undefined' ? getLastMessageId() : (window.parent as any).getLastMessageId?.() || 0);
     // @ts-ignore
-    const chat = (typeof getChatMessages !== 'undefined' ? getChatMessages(`0-${lastId}`) : (window.parent as any).getChatMessages?.(`0-${lastId}`));
+    const chat = (typeof getChatMessages !== 'undefined' ? getChatMessages(`0-${lastId}`, { role: 'assistant' }) : (window.parent as any).getChatMessages?.(`0-${lastId}`, { role: 'assistant' }));
     
     const currentLength = chat?.length || 0;
     const interval = settings.value.autoExtractInterval;
@@ -1005,8 +1118,27 @@ const checkAutoRefresh = () => {
 
 onMounted(() => {
   loadInitialData();
-  // 每 2 秒检查一次是否需要自动刷新
-  setInterval(checkAutoRefresh, 2000);
+
+  // 机制优化：由轮询改为事件驱动 (Mobile & Low-performance optimization)
+  // @ts-ignore
+  if (typeof eventOn !== 'undefined' && typeof tavern_events !== 'undefined') {
+    // 1. 监听消息接收与修改，触发自动刷新检查
+    // @ts-ignore
+    eventOn(tavern_events.MESSAGE_RECEIVED, () => checkAutoRefresh());
+    // @ts-ignore
+    eventOn(tavern_events.MESSAGE_UPDATED, () => checkAutoRefresh());
+    
+    // 2. 监听聊天切换，重置计数并刷新目录
+    // @ts-ignore
+    eventOn(tavern_events.CHAT_CHANGED, () => {
+      lastRefreshedLength.value = 0;
+      updateDirectory();
+    });
+  } else {
+    // 降级方案：若接口未就绪，使用低频轮询
+    console.warn('[One] TavernHelper events not found, falling back to polling.');
+    setInterval(checkAutoRefresh, 5000);
+  }
 
   // 全局点击监听，关闭筛选菜单
   window.addEventListener('click', () => {
@@ -1081,10 +1213,13 @@ defineExpose({ toggleUI });
     <div 
       class="one-panel" 
       :class="[appliedSettings.mode, { 'locked': isGenerating }]"
-      :style="{ 
-        width: appliedSettings.width, 
-        height: appliedSettings.mode === 'modal' ? appliedSettings.height : '100vh' 
-      }"
+      :style="[
+        dynamicAiStyles,
+        { 
+          width: appliedSettings.width, 
+          height: appliedSettings.mode === 'modal' ? appliedSettings.height : '100vh' 
+        }
+      ]"
     >
       <!-- Loading Overlay -->
       <div v-if="isGenerating" class="generating-overlay">
@@ -1125,8 +1260,8 @@ defineExpose({ toggleUI });
                     <div class="mapper-item" @click="activePickerKey = activePickerKey === key ? null : key">
                       <span class="mapper-key">{{ key }}</span>
                       <div class="style-preview">
-                        <i class="fa-solid" :class="getStyleIcon(settings.aiConfig.moduleMapping?.[key] || 'auto')"></i>
-                        <span class="style-name">{{ settings.aiConfig.moduleMapping?.[key] || 'auto' }}</span>
+                        <i class="fa-solid" :class="getStyleIcon(getMappedStyle(key, null))"></i>
+                        <span class="style-name">{{ getMappedStyle(key, null) }}</span>
                       </div>
                     </div>
                     <!-- Picker Grid -->
@@ -1204,6 +1339,7 @@ defineExpose({ toggleUI });
                 :key="item.id" 
                 class="directory-item"
                 :class="['level-' + item.level, { 'is-vol': item.level === 1 }]"
+                :style="{ '--level': item.level || 1 }"
                 @click="handleJump(item.floor)"
               >
                 <!-- 展开折叠触发区 -->
@@ -1224,7 +1360,7 @@ defineExpose({ toggleUI });
                 :key="item.id" 
                 class="one-ai-item-container"
                 :class="['level-' + (item.level || 1)]"
-                :style="dynamicAiStyles"
+                :style="{ '--level': item.level || 1 }"
                 @click="handleJump(item.floor)"
               >
                 <!-- Modular Rendering Engine (Tier 1.8 Universal) -->
@@ -1395,12 +1531,13 @@ defineExpose({ toggleUI });
                   <div class="ai-rules-container">
                     <div v-for="rule in (settings.aiConfig.regexRules || [])" :key="rule.id" class="rule-card mini">
                       <div class="rule-card-header" @click="toggleAiRegexRuleExpansion(rule)">
-                        <div class="toggle-area" style="display:flex; align-items:center; gap:8px;" @click.stop>
-                          <label class="toggle-switch">
+                        <div class="toggle-area" style="display:flex; align-items:center; gap:8px;">
+                          <label class="toggle-switch" @click.stop>
                             <input type="checkbox" v-model="rule.enabled">
                             <span class="slider"></span>
                           </label>
-                          <span class="r-title-display" style="font-weight:bold; font-size:0.85rem;">{{ rule.name }}</span>
+                          <span class="r-title-display" style="font-weight:bold; font-size:0.85rem;" @click.stop>{{ rule.name }}</span>
+                          <i class="fa-solid fa-chevron-right" style="font-size:0.6rem; opacity:0.4; transition: transform 0.2s; margin-left:2px;" :style="{ transform: rule.isExpanded ? 'rotate(90deg)' : 'rotate(0)' }"></i>
                         </div>
                         <div style="display:flex; align-items:center; gap:10px;">
                           <div class="mode-badge" :class="rule.mode" @click.stop="rule.mode = rule.mode === 'include' ? 'exclude' : 'include'">
@@ -1457,9 +1594,10 @@ defineExpose({ toggleUI });
                   <div class="prompt-container">
                     <div v-for="(msg, idx) in settings.aiConfig.promptMessages" :key="msg.id" class="prompt-msg-card" :class="[msg.role, { collapsed: !msg.isExpanded }]">
                       <div class="msg-header" @click="msg.isExpanded = !msg.isExpanded">
-                        <div class="msg-title-area" @click.stop>
-                          <input v-model="msg.name" class="msg-name-input" placeholder="消息标题...">
-                          <select v-model="msg.role" class="role-select">
+                        <div class="msg-title-area">
+                          <i class="fa-solid" :class="msg.isExpanded ? 'fa-chevron-down' : 'fa-chevron-right'" style="opacity:0.3; width:16px;"></i>
+                          <input v-model="msg.name" class="msg-name-input" placeholder="消息标题..." @click.stop>
+                          <select v-model="msg.role" class="role-select" @click.stop>
                             <option value="system">System</option>
                             <option value="user">User</option>
                             <option value="assistant">Assistant</option>
@@ -1469,7 +1607,6 @@ defineExpose({ toggleUI });
                           <i class="fa-solid fa-arrow-up" @click.stop="movePromptMessage(idx, 'up')" :class="{ disabled: idx === 0 }"></i>
                           <i class="fa-solid fa-arrow-down" @click.stop="movePromptMessage(idx, 'down')" :class="{ disabled: idx === settings.aiConfig.promptMessages.length - 1 }"></i>
                           <i class="fa-solid fa-trash" @click.stop="removePromptMessage(msg.id)"></i>
-                          <i class="fa-solid" :class="msg.isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'" style="margin-left:4px; opacity:0.5;"></i>
                         </div>
                       </div>
                       <div v-if="msg.isExpanded" class="msg-body">
@@ -1856,9 +1993,7 @@ defineExpose({ toggleUI });
 }
 
 .one-panel {
-  background-color: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.85));
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background-color: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.95));
   border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
   border-radius: 12px;
   display: flex;
@@ -1869,6 +2004,10 @@ defineExpose({ toggleUI });
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-y: auto;
   overflow-x: hidden;
+  /* 移动端滚动优化 */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  user-select: none; /* 防止面板非内容区域被误选 */
 }
 
 /* Modal Displacement - Slight vertical offset for better visual balance */
@@ -1909,10 +2048,10 @@ defineExpose({ toggleUI });
   top: 0;
   z-index: 100;
   /* Sync with the panel theme */
-  background: var(--SmartThemeBlurTintColor, rgba(30, 30, 30, 0.85));
-  backdrop-filter: blur(20px); 
+  background: var(--SmartThemeBlurTintColor, rgba(30, 30, 30, 0.95));
   border-bottom: 1px solid var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.05));
   opacity: 1 !important;
+  user-select: none;
 }
 
 .search-bar.mini {
@@ -1932,21 +2071,45 @@ defineExpose({ toggleUI });
   border-color: var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.05));
 }
 
-.directory-item {
+.directory-item, .one-ai-item-container {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
   cursor: pointer;
   transition: all 0.2s;
+  box-sizing: border-box;
+  --level-indent: calc((var(--level, 1) - 1) * 20px);
+  /* 默认模式：弹窗模式使用内边距缩进 */
+  padding: 8px 12px;
+  padding-left: calc(var(--one-c-pl, 12px) + var(--level-indent));
+  width: 100%;
 }
 
-.ai-item-mode .directory-item {
-  background: var(--SmartThemeChatTintColor, rgba(255, 255, 255, 0.03));
-  font-weight: bold;
-  border-bottom: 1px dashed var(--SmartThemeBorderColor, rgba(255, 255, 255, 0.1));
+.directory-item:hover, .one-ai-item-container:hover {
+  background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.05));
 }
 
+/* 抽屉模式：剪裁缩进逻辑 (CSS 实现) */
+.one-panel.drawer-right .directory-item, 
+.one-panel.drawer-right .one-ai-item-container {
+  margin-left: calc(var(--one-c-ml, 0px) + var(--level-indent));
+  padding-left: var(--one-c-pl, 12px);
+  width: calc(100% - var(--one-c-ml, 0px) - var(--one-c-mr, 0px) - var(--level-indent));
+}
+
+.one-panel.drawer-left .directory-item, 
+.one-panel.drawer-left .one-ai-item-container {
+  margin-right: calc(var(--one-c-mr, 0px) + var(--level-indent));
+  margin-left: var(--one-c-ml, 0px);
+  padding-left: var(--one-c-pl, 12px);
+  width: calc(100% - var(--one-c-ml, 0px) - var(--one-c-mr, 0px) - var(--level-indent));
+}
+
+.directory-item.level-1, .one-ai-item-container.level-1 { font-weight: 600; }
+.directory-item.level-2, .one-ai-item-container.level-2 { font-size: 0.95em; opacity: 0.9; }
+.directory-item.level-3, .one-ai-item-container.level-3 { font-size: 0.9em; opacity: 0.8; }
+
+/* AI 模式专用布局样式 (恢复) */
 .ai-module-grid {
   display: flex;
   flex-direction: column;
@@ -1954,7 +2117,6 @@ defineExpose({ toggleUI });
   position: relative;
 }
 
-/* 统一楼层号 (Fallback) */
 .floor-badge-unified {
   position: absolute;
   top: 6px;
@@ -1965,7 +2127,6 @@ defineExpose({ toggleUI });
   pointer-events: none;
 }
 
-/* Header 内部楼层号 (Preferred) */
 .floor-badge-inline {
   font-size: 0.7rem;
   opacity: 0.3;
@@ -2014,20 +2175,8 @@ defineExpose({ toggleUI });
   gap: 4px;
 }
 
-.directory-item:hover {
-  background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.05));
-}
-
-.directory-item.level-1 { padding-left: 12px; font-weight: 600; }
-.directory-item.level-2 { padding-left: 32px; font-size: 0.95em; opacity: 0.9; }
-.directory-item.level-3 { padding-left: 48px; font-size: 0.9em; opacity: 0.8; }
-
-.one-ai-item-container.level-1 { margin-left: 0; width: 100%; font-weight: 600; }
-.one-ai-item-container.level-2 { margin-left: 20px; width: calc(100% - 20px); font-size: 0.95em; opacity: 0.9; }
-.one-ai-item-container.level-3 { margin-left: 35px; width: calc(100% - 35px); font-size: 0.9em; opacity: 0.8; }
-
 .fold-trigger, .one-fold-trigger {
-  padding: 4px 8px;
+  padding: 8px 12px; /* 增加点击热区 */
   margin-left: -8px;
   border-radius: 4px;
   cursor: pointer;
@@ -2035,8 +2184,9 @@ defineExpose({ toggleUI });
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  min-height: 24px;
+  min-width: 32px; /* 移动端建议至少 32px */
+  min-height: 32px;
+  user-select: none;
 }
 
 .fold-trigger:hover, .one-fold-trigger:hover {
@@ -2080,19 +2230,25 @@ defineExpose({ toggleUI });
   background: transparent; border: none;
   color: var(--SmartThemeBodyColor);
   font-size: 1.1rem; cursor: pointer;
-  padding: 8px 10px; border-radius: 8px;
+  padding: 10px 12px; border-radius: 8px; /* 稍微增加热区 */
   transition: background 0.2s;
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;
+  touch-action: manipulation; /* 优化点击响应 */
 }
 .icon-btn.sm {
   font-size: 1rem;
-  padding: 6px;
+  padding: 8px;
 }
 .icon-btn:hover, .one-tab-btn:hover { background: rgba(128,128,128,0.2); }
 
-.content { flex: 1; padding: 4px 6px; }
+.content { 
+  flex: 1; 
+  padding: 4px 6px; 
+  overscroll-behavior: contain; /* 锁定内部滚动 */
+}
 
 /* Settings Layout Fixes */
 .one-settings-layout { display: flex; flex-direction: column; min-height: 100%; }
@@ -2199,11 +2355,16 @@ input:checked + .slider:before { transform: translateX(20px); }
   opacity: 0.6;
   font-size: 0.9rem;
   transition: all 0.2s;
+  padding: 8px; /* 增加点击热区 */
+  user-select: none;
 }
 .del-icon-btn:hover {
   opacity: 1;
   color: #ff4d4f;
   transform: scale(1.1);
+}
+.copy-code {
+  user-select: text; /* 只有代码允许选择 */
 }
 .copy-code:active {
   transform: scale(0.98);
@@ -2368,18 +2529,20 @@ input:checked + .slider:before { transform: translateX(20px); }
   font-weight: bold;
 }
 .test-btn {
-  background: transparent;
+  background: var(--SmartThemeChatTintColor, #007bff);
   border: 1px solid var(--SmartThemeChatTintColor, #007bff);
-  color: var(--SmartThemeChatTintColor, #007bff);
-  padding: 4px 12px;
-  border-radius: 6px;
-  font-size: 0.8rem;
+  color: var(--SmartThemeBodyColor, #fff);
+  padding: 6px 16px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: bold;
   cursor: pointer;
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 .test-btn:hover:not(:disabled) {
-  background: var(--SmartThemeChatTintColor, #007bff);
-  color: #fff;
+  filter: brightness(1.2);
+  transform: translateY(-1px);
 }
 .test-btn:disabled {
   opacity: 0.5;
@@ -2470,6 +2633,11 @@ input:checked + .slider:before { transform: translateX(20px); }
   .header { padding: 10px 8px; }
   .one-settings-tabs { padding: 4px 8px; }
   .tabs-group { gap: 4px; }
+
+  /* 提示词标题区移动端避让 */
+  .msg-header { gap: 8px; padding: 8px; }
+  .msg-name-input { max-width: 80px !important; }
+  .msg-actions { gap: 8px !important; }
 }
 
 /* --- Settings Panel Sub-Tabs (Regex/Prompt/API) --- */
@@ -2689,7 +2857,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .prompt-msg-card.system { border-left-color: #ffd700; }
 .prompt-msg-card.user { border-left-color: #007bff; }
 .one-ai-item-container {
-  width: 100% !important;
+  width: 100%;
   box-sizing: border-box;
   margin-top: var(--one-c-mt, 0);
   margin-bottom: var(--one-c-mb, 8px);
@@ -2711,7 +2879,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   flex-direction: column;
   gap: var(--one-c-gap, 8px);
   position: relative;
-  width: 100% !important;
+  width: 100%;
   box-sizing: border-box;
   padding-top: var(--one-c-pt, 10px);
   padding-bottom: var(--one-c-pb, 10px);
@@ -2925,9 +3093,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 /* --- Mapper UI Styles --- */
 .filter-dropdown.wide {
   width: 280px;
-  background: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.85));
-  backdrop-filter: blur(25px);
-  -webkit-backdrop-filter: blur(25px);
+  background: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.92));
   border: 1px solid var(--SmartThemeBorderColor);
   box-shadow: 0 12px 40px rgba(0,0,0,0.5);
   border-radius: 12px;
@@ -3089,9 +3255,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .preview-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5); /* 降低叠加背景，让模糊更透亮 */
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: rgba(0,0,0,0.7); /* 调高不透明度支持非模糊背景 */
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -3102,10 +3266,8 @@ input:checked + .slider:before { transform: translateX(20px); }
   width: 100%;
   max-width: 700px;
   max-height: 85vh;
-  background: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.85));
+  background: var(--SmartThemeBlurTintColor, rgba(30,30,30,0.95));
   color: var(--SmartThemeBodyColor);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--SmartThemeBorderColor, rgba(255,255,255,0.1));
   border-radius: 12px;
   display: flex;
@@ -3274,8 +3436,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 .generating-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(8px);
+  background: rgba(0,0,0,0.8);
   z-index: 2000;
   display: flex;
   align-items: center;
@@ -3450,8 +3611,7 @@ input:checked + .slider:before { transform: translateX(20px); }
   top: 45px;
   right: 15px;
   width: 160px;
-  background: var(--SmartThemeBlurBackgroundColor);
-  backdrop-filter: blur(20px);
+  background: var(--SmartThemeBlurBackgroundColor, rgba(20,20,20,0.95));
   border: 1px solid var(--SmartThemeBorderColor);
   border-radius: 12px;
   padding: 10px;

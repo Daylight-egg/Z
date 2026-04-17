@@ -68,14 +68,24 @@ export function buildDirectory(rules: any[], isAiMode: boolean = false, mapping:
             }
           });
 
+          // 如果没有被明确映射为 Header 的键，但存在数据，则执行“保底提取”
+          if (splitItems.length === 0) {
+            // 找到第一个非内置字段作为兜底标题
+            const firstValidKey = Object.keys(data).find(k => 
+              k !== 'floor' && k !== 'level' && !k.endsWith('_level') && k !== 'summary'
+            );
+            if (firstValidKey) {
+              const fallbackLvl = parseInt(data[firstValidKey + '_level']) || parseInt(data.level) || 1;
+              splitItems.push({ key: firstValidKey, level: fallbackLvl });
+            } else if (data.summary) {
+              // 连自定义键都没有，才退回到 summary
+              const fallbackLvl = parseInt(data.level) || 1;
+              splitItems.push({ key: 'summary', level: fallbackLvl });
+            }
+          }
+
           // 按层级从浅到深排序，确保渲染顺序正确
           const sortedItems = splitItems.sort((a, b) => a.level - b.level);
-
-          // 如果 AI 啥都没输出但有总结，尝试保底一个目录项
-          if (sortedItems.length === 0 && data.summary) {
-            const fallbackLvl = parseInt(data.level) || 1;
-            sortedItems.push({ key: 'title', level: fallbackLvl });
-          }
 
           sortedItems.forEach((config, idx) => {
             const isLeaf = idx === sortedItems.length - 1;

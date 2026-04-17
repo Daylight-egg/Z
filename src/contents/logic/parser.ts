@@ -26,7 +26,11 @@ export function parseAiDirectoryBlocks(text: string): AiModuleData[] {
   let match;
   while ((match = blockRegex.exec(text)) !== null) {
     const floor = parseInt(match[1], 10);
-    const yamlContent = match[2].trim();
+    // 预处理：统一将全角冒号、引号等标准化，确保 YAML 解析成功率
+    const yamlContent = match[2].trim()
+      .replace(/：/g, ':')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'");
     
     try {
       // 解析内部的 YAML 键值对
@@ -39,10 +43,11 @@ export function parseAiDirectoryBlocks(text: string): AiModuleData[] {
       }
     } catch (e) {
       console.warn(`[Parser] Failed to parse YAML at floor ${floor}:`, e);
-      // 如果 YAML 解析失败，尝试极简的手动解析（key: value）
+      // 如果 YAML 解析失败，尝试手动解析
       const fallbackData: any = { floor };
       yamlContent.split('\n').forEach(line => {
-        const parts = line.split(':');
+        // 使用正则分割，兼容中英文冒号
+        const parts = line.split(/[:：]/);
         if (parts.length >= 2) {
           const key = parts[0].trim();
           const value = parts.slice(1).join(':').trim().replace(/^["']|["']$/g, '');
