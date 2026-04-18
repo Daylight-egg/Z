@@ -1,4 +1,5 @@
 {
+  "version": "1.0.1",
   "scripts": {
     "build:dev": "webpack --mode development",
     "build": "webpack --mode production",
