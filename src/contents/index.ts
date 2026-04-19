@@ -1,6 +1,6 @@
 import { createApp } from 'vue';
-import App from './App.vue';
 import { teleportStyle } from '../../util/script';
+import App from './App.vue';
 
 const BUTTON_NAME = '目录';
 const ROOT_ID = 'contents-app-root';
@@ -33,6 +33,9 @@ async function init() {
   let vm: any;
   try {
     vm = app.mount(container) as any;
+    if (window.toastr) {
+      window.toastr.success('更新已同步：去除边距继承和紧俏楼层号', '测试提示');
+    }
   } catch (mountErr) {
     console.error('[Contents] Vue 应用挂载失败:', mountErr);
     return;
