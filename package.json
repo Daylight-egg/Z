@@ -1,5 +1,8 @@
 {
+<<<<<<< HEAD
   "version": "1.0.1",
+=======
+>>>>>>> 5427fc4312cb5983ca9885b5f500c6082deaadf5
   "scripts": {
     "build:dev": "webpack --mode development",
     "build": "webpack --mode production",
@@ -8,8 +11,12 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "dump": "node dump_schema.ts",
+<<<<<<< HEAD
     "sync": "node tavern_sync.mjs",
     "deploy": "pnpm build && git add . && git commit -m \"deploy: fast update\" && git push"
+=======
+    "sync": "node tavern_sync.mjs"
+>>>>>>> 5427fc4312cb5983ca9885b5f500c6082deaadf5
   },
   "browserslist": [
     "defaults and partially supports es6-module"
