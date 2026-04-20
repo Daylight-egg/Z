@@ -1,4 +1,6 @@
 {
+  "name": "one-extension",
+  "version": "1.0.2",
   "scripts": {
     "build:dev": "webpack --mode development",
     "build": "webpack --mode production",

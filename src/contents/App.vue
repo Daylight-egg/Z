@@ -1366,9 +1366,9 @@ defineExpose({ toggleUI });
                 <!-- Modular Rendering Engine (Tier 1.8 Universal) -->
                 <div v-if="item.metadata" class="one-ai-grid">
                   
-                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['header', 'block', 'quote'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level')" class="one-ai-primary-zone">
+                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['header', 'block', 'quote'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level' && v && v.toString().trim() !== '')" class="one-ai-primary-zone">
                     <template v-for="(val, key) in item.metadata" :key="key">
-                      <template v-if="['header', 'block', 'quote'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level'">
+                      <template v-if="['header', 'block', 'quote'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level' && val && val.toString().trim() !== ''">
                         
                         <!-- Header Style -->
                         <div v-if="getMappedStyle(key, val) === 'header'" class="one-style-header">
@@ -1394,9 +1394,9 @@ defineExpose({ toggleUI });
                   </div>
 
                   <!-- 2. Detail Components: Pills, Attrs, Progress -->
-                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['pill', 'attr', 'progress'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level')" class="one-ai-details-zone">
+                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['pill', 'attr', 'progress'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level' && v && v.toString().trim() !== '')" class="one-ai-details-zone">
                     <template v-for="(val, key) in item.metadata" :key="key">
-                      <template v-if="['pill', 'attr', 'progress'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level'">
+                      <template v-if="['pill', 'attr', 'progress'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level' && val && val.toString().trim() !== ''">
                         
                         <div v-if="getMappedStyle(key, val) === 'pill'" class="one-style-pill">
                            <i class="fa-solid" :class="getModuleIcon(key)"></i>
@@ -2073,13 +2073,20 @@ defineExpose({ toggleUI });
 
 .directory-item, .one-ai-item-container {
   display: flex;
-  align-items: center;
-  gap: 10px;
   cursor: pointer;
   transition: all 0.2s;
   box-sizing: border-box;
   --level-indent: calc((var(--level, 1) - 1) * 20px);
-  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.directory-item:hover, .one-ai-item-container:hover {
+  background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.05));
+}
+
+.directory-item {
+  align-items: center;
+  gap: 10px;
   margin-top: var(--one-c-mt, 0px);
   margin-bottom: var(--one-c-mb, 4px);
   margin-left: var(--one-c-ml, 0px);
@@ -2090,24 +2097,24 @@ defineExpose({ toggleUI });
   padding-left: calc(var(--one-c-pl, 12px) + var(--level-indent));
 }
 
-.directory-item:hover, .one-ai-item-container:hover {
-  background: var(--SmartThemeChatTintColor, rgba(255,255,255,0.05));
-}
-
 /* 抽屉模式：剪裁缩进逻辑 (CSS 实现) */
 .one-panel.drawer-right .directory-item, 
 .one-panel.drawer-right .one-ai-item-container {
   margin-left: calc(var(--one-c-ml, 0px) + var(--level-indent));
-  padding-left: var(--one-c-pl, 12px);
   width: calc(100% - var(--one-c-ml, 0px) - var(--one-c-mr, 0px) - var(--level-indent));
+}
+.one-panel.drawer-right .directory-item {
+  padding-left: var(--one-c-pl, 12px);
 }
 
 .one-panel.drawer-left .directory-item, 
 .one-panel.drawer-left .one-ai-item-container {
   margin-right: calc(var(--one-c-mr, 0px) + var(--level-indent));
   margin-left: var(--one-c-ml, 0px);
-  padding-left: var(--one-c-pl, 12px);
   width: calc(100% - var(--one-c-ml, 0px) - var(--one-c-mr, 0px) - var(--level-indent));
+}
+.one-panel.drawer-left .directory-item {
+  padding-left: var(--one-c-pl, 12px);
 }
 
 .directory-item.level-1, .one-ai-item-container.level-1 { font-weight: 600; }
@@ -2181,6 +2188,7 @@ defineExpose({ toggleUI });
 }
 
 .fold-trigger, .one-fold-trigger {
+  -webkit-tap-highlight-color: transparent;
   padding: 8px 12px; /* 增加点击热区 */
   margin-left: -8px;
   border-radius: 4px;
@@ -2357,6 +2365,7 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 .del-icon-btn {
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer;
   opacity: 0.6;
   font-size: 0.9rem;
@@ -2588,6 +2597,8 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 .empty-state i { font-size: 3rem; margin-bottom: 12px; }
 
+
+
 /* Tutorial Modal */
 .tutorial-overlay {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -2597,15 +2608,20 @@ input:checked + .slider:before { transform: translateX(20px); }
   background: var(--SmartThemeChatTintColor, #222); padding: 20px; border-radius: 12px;
   width: 85%; max-height: 85%; overflow-y: auto; position: relative;
 }
-.tutorial-close { position: absolute; top: 12px; right: 12px; cursor: pointer; }
+.tutorial-close { position: absolute; top: 12px; right: 12px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .example-box { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; margin: 8px 0; border: 1px solid rgba(255,255,255,0.1); }
-.copy-code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: var(--SmartThemeEmColor); font-family: monospace; }
+.copy-code { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: var(--SmartThemeEmColor); font-family: monospace; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 /* Mobile Adaptations */
 @media (max-width: 768px) {
   .one-panel { max-width: 95%; max-height: 90%; }
   .one-panel.modal { transform: translateY(0); } /* Reset displacement on mobile */
-  .drawer-left, .drawer-right { max-width: 85%; max-height: 100% !important; height: 100% !important; }
+  .drawer-left, .drawer-right { 
+    max-width: 85%; 
+    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
+    height: calc(100% - 48px - env(safe-area-inset-top, 0px)) !important;
+    max-height: calc(100% - 48px - env(safe-area-inset-top, 0px)) !important;
+  }
   
   /* Narrow Screen Adaptation for Rules */
   .rule-card-header { padding: 10px 8px; gap: 4px; }
@@ -2863,7 +2879,6 @@ input:checked + .slider:before { transform: translateX(20px); }
 .prompt-msg-card.system { border-left-color: #ffd700; }
 .prompt-msg-card.user { border-left-color: #007bff; }
 .one-ai-item-container {
-  width: 100%;
   box-sizing: border-box;
   margin-top: var(--one-c-mt, 0);
   margin-bottom: var(--one-c-mb, 8px);
@@ -2878,23 +2893,25 @@ input:checked + .slider:before { transform: translateX(20px); }
   overflow: hidden;
   transition: all 0.2s;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .one-ai-grid {
   display: flex;
+  flex: 1; /* Stretch to fill completely */
   flex-direction: column;
   gap: var(--one-c-gap, 8px);
   position: relative;
-  width: 100%;
   box-sizing: border-box;
   padding-top: var(--one-c-pt, 10px);
   padding-bottom: var(--one-c-pb, 10px);
-  padding-left: var(--one-c-pl, 12px);
+  padding-left: calc(var(--one-c-pl, 12px) + var(--level-indent));
   padding-right: var(--one-c-pr, 12px);
-  margin-top: var(--one-c-mt, 0);
-  margin-bottom: var(--one-c-mb, 0);
-  margin-left: var(--one-c-ml, 0);
-  margin-right: var(--one-c-mr, 0);
+}
+
+.one-panel.drawer-left .one-ai-grid,
+.one-panel.drawer-right .one-ai-grid {
+  padding-left: var(--one-c-pl, 12px) !important;
 }
 
 /* 统一楼层号 (Fallback) */
@@ -2918,13 +2935,13 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 .one-ai-primary-zone, .one-ai-details-zone {
-  width: 100%;
   display: flex;
+  width: 100%;
 }
 
 .one-ai-primary-zone {
   flex-direction: column;
-  gap: var(--one-item-gap, 8px);
+  gap: var(--one-c-gap, 6px); /* Bound exactly to UI lab gap setting */
 }
 
 .one-ai-details-zone {

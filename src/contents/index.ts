@@ -71,12 +71,6 @@ async function init() {
       });
 
       console.log(`%c[Contents] 按钮 [${BUTTON_NAME}] 注册成功`, 'color: #28a745;');
-      // 临时弹窗，用于测试验证更新
-      // @ts-ignore
-      if (window.parent.toastr) {
-        // @ts-ignore
-        window.parent.toastr.success('目录界面排版更新已同步！', '酒馆助手', { timeOut: 3000 });
-      }
     } catch (err) {
       console.error('[Contents] 注册过程发生错误，500ms 后重试:', err);
       setTimeout(setupInterface, 500);
