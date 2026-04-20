@@ -33,9 +33,6 @@ async function init() {
   let vm: any;
   try {
     vm = app.mount(container) as any;
-    if (window.toastr) {
-      window.toastr.success('更新已同步：去除边距继承和紧俏楼层号', '测试提示');
-    }
   } catch (mountErr) {
     console.error('[Contents] Vue 应用挂载失败:', mountErr);
     return;
@@ -74,6 +71,12 @@ async function init() {
       });
 
       console.log(`%c[Contents] 按钮 [${BUTTON_NAME}] 注册成功`, 'color: #28a745;');
+      // 临时弹窗，用于测试验证更新
+      // @ts-ignore
+      if (window.parent.toastr) {
+        // @ts-ignore
+        window.parent.toastr.success('目录界面排版更新已同步！', '酒馆助手', { timeOut: 3000 });
+      }
     } catch (err) {
       console.error('[Contents] 注册过程发生错误，500ms 后重试:', err);
       setTimeout(setupInterface, 500);
