@@ -1,13 +1,9 @@
 <script setup lang="ts">
 import { ref, shallowRef, onMounted, watch, computed } from 'vue';
 import { loadPersistence, saveGlobalPersistence } from './logic/persistence';
-import { buildDirectory, jumpToFloor, type DirectoryItem as DirectoryItemType } from './logic/directory';
+import { buildDirectory, jumpToFloor, type DirectoryItem } from './logic/directory';
 import { fetchModels, testAiConnection } from './logic/ai';
 import { parseAiDirectoryBlocks, type AiModuleData } from './logic/parser';
-import { getMappedStyle, getMappedLevel, getStyleIcon, getModuleIcon, getProgressWidth } from './logic/ui_utils';
-
-import DirectoryItem from './components/DirectoryItem.vue';
-import AiDirectoryItem from './components/AiDirectoryItem.vue';
 
 // --- UI State ---
 const isVisible = ref(false);
@@ -177,17 +173,9 @@ const baseRules = ref([
 ]);
 
 const isSortAsc = ref(true);
-const directoryItems = shallowRef<DirectoryItemType[]>([]); // This will store basic regex results
+const directoryItems = shallowRef<DirectoryItem[]>([]); // This will store basic regex results
 const aiDirectoryItems = shallowRef<any[]>([]); // This will store AI generated results separately
 const searchQuery = ref('');
-const debouncedSearchQuery = ref('');
-let searchTimer: any = null;
-watch(searchQuery, (newVal) => {
-  if (searchTimer) clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    debouncedSearchQuery.value = newVal;
-  }, 200);
-});
 
 // --- Filter & Sort states for Rules ---
 const ruleFilter = ref<'all' | 'enabled' | 'disabled'>('all');
@@ -228,8 +216,8 @@ const isAiMode = computed({
 
 const filteredDirectory = computed(() => {
   let list = isAiMode.value ? [...aiDirectoryItems.value] : [...directoryItems.value];
-  if (debouncedSearchQuery.value) {
-    list = list.filter(item => item.text.toLowerCase().includes(debouncedSearchQuery.value.toLowerCase()));
+  if (searchQuery.value) {
+    list = list.filter(item => item.text.toLowerCase().includes(searchQuery.value.toLowerCase()));
   }
   
   // Apply sorting: first by floor (according to preference), then by level (ascending) for same-floor items
@@ -1346,26 +1334,102 @@ defineExpose({ toggleUI });
         <div class="content">
           <div class="directory-list">
             <template v-if="!isAiMode">
-              <DirectoryItem
-                v-for="item in filteredDirectory"
-                :key="item.id"
-                :item="item"
-                @jump="handleJump"
-                @toggle-fold="toggleVol"
-              />
+              <div 
+                v-for="item in filteredDirectory" 
+                :key="item.id" 
+                class="directory-item"
+                :class="['level-' + item.level, { 'is-vol': item.level === 1 }]"
+                :style="{ '--level': item.level || 1 }"
+                @click="handleJump(item.floor)"
+              >
+                <!-- 展开折叠触发区 -->
+                <div v-if="item.hasChildren" class="fold-trigger" @click.stop="toggleVol(item.id)">
+                  <i class="fa-solid" :class="item.isCollapsed ? 'fa-square-plus' : 'fa-square-minus'"></i>
+                </div>
+                <i v-else class="fa-solid fa-file-lines" style="opacity: 0.3; margin-right: 4px; font-size: 0.8rem;"></i>
+                
+                <span class="item-text">{{ item.text }}</span>
+                <span class="floor-badge">{{ item.floor }}</span>
+              </div>
             </template>
 
             <!-- AI Modular View -->
             <template v-else>
-              <AiDirectoryItem
-                v-for="item in filteredDirectory"
-                :key="item.id"
-                :item="item"
-                :module-mapping="settings.aiConfig.moduleMapping"
-                @jump="handleJump"
-                @toggle-fold="toggleVol"
-              />
-            </template>
+              <div 
+                v-for="item in filteredDirectory" 
+                :key="item.id" 
+                class="one-ai-item-container"
+                :class="['level-' + (item.level || 1)]"
+                :style="{ '--level': item.level || 1 }"
+                @click="handleJump(item.floor)"
+              >
+                <!-- Modular Rendering Engine (Tier 1.8 Universal) -->
+                <div v-if="item.metadata" class="one-ai-grid">
+                  
+                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['header', 'block', 'quote'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level' && v && v.toString().trim() !== '')" class="one-ai-primary-zone">
+                    <template v-for="(val, key) in item.metadata" :key="key">
+                      <template v-if="['header', 'block', 'quote'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level' && val && val.toString().trim() !== ''">
+                        
+                        <!-- Header Style -->
+                        <div v-if="getMappedStyle(key, val) === 'header'" class="one-style-header">
+                          <div v-if="item.hasChildren" class="one-fold-trigger" @click.stop="toggleVol(item.id)">
+                            <i class="fa-solid" :class="item.isCollapsed ? 'fa-square-plus' : 'fa-square-minus'"></i>
+                          </div>
+                          <div class="one-h-text">{{ val }}</div>
+                          <div class="one-floor-badge-inline">#{{ item.floor }}</div>
+                        </div>
+
+                        <!-- Quote Style -->
+                        <div v-else-if="getMappedStyle(key, val) === 'quote'" class="one-style-quote">
+                          <i class="fa-solid fa-quote-left"></i>
+                          <div class="one-q-text">{{ val }}</div>
+                        </div>
+
+                        <!-- Block Style -->
+                        <div v-else-if="getMappedStyle(key, val) === 'block'" class="one-style-block">
+                          {{ val }}
+                        </div>
+                      </template>
+                    </template>
+                  </div>
+
+                  <!-- 2. Detail Components: Pills, Attrs, Progress -->
+                  <div v-if="Object.entries(item.metadata).some(([k,v]) => ['pill', 'attr', 'progress'].includes(getMappedStyle(k, v)) && k !== 'floor' && k !== 'level' && v && v.toString().trim() !== '')" class="one-ai-details-zone">
+                    <template v-for="(val, key) in item.metadata" :key="key">
+                      <template v-if="['pill', 'attr', 'progress'].includes(getMappedStyle(key, val)) && key !== 'floor' && key !== 'level' && val && val.toString().trim() !== ''">
+                        
+                        <div v-if="getMappedStyle(key, val) === 'pill'" class="one-style-pill">
+                           <i class="fa-solid" :class="getModuleIcon(key)"></i>
+                           <span>{{ val }}</span>
+                        </div>
+
+                        <div v-else-if="getMappedStyle(key, val) === 'attr'" class="one-style-attr">
+                           <span class="one-attr-key">{{ key }}:</span>
+                           <span class="one-attr-val">{{ val }}</span>
+                        </div>
+
+                        <!-- Progress Style -->
+                        <div v-else-if="getMappedStyle(key, val) === 'progress'" class="one-style-progress">
+                          <div class="one-pr-label">
+                            <span><i class="fa-solid fa-chart-line"></i> {{ key }}</span>
+                            <span>{{ val }}</span>
+                          </div>
+                          <div class="one-style-progress-wrap">
+                            <div class="one-pr-fill" :style="{ width: getProgressWidth(val), background: 'var(--one-accent-color)' }"></div>
+                          </div>
+                        </div>
+                      </template>
+                    </template>
+                </div>
+
+                <!-- 3. 后备楼层标记 (只有在没有标题组件时显示) -->
+                <div v-if="!Object.keys(item.metadata || {}).some(k => getMappedStyle(k, item.metadata[k]) === 'header')" class="one-floor-badge-unified">
+                  #{{ item.floor }}
+                </div>
+                
+              </div>
+            </div>
+          </template>
             
             <div v-if="filteredDirectory.length === 0" class="empty-state">
               <i class="fa-solid fa-folder-open"></i>
@@ -1937,16 +2001,13 @@ defineExpose({ toggleUI });
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
-  transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow-y: auto;
   overflow-x: hidden;
-  /* 移动端与性能优化 */
+  /* 移动端滚动优化 */
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  user-select: none;
-  contain: paint layout; /* 隔离渲染，极大提升性能 */
-  will-change: transform, opacity;
-  transform: translateZ(0); /* 强制开启 GPU 加速 */
+  user-select: none; /* 防止面板非内容区域被误选 */
 }
 
 /* Modal Displacement - Slight vertical offset for better visual balance */
@@ -2555,11 +2616,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 @media (max-width: 768px) {
   .one-panel { max-width: 95%; max-height: 90%; }
   .one-panel.modal { transform: translateY(0); } /* Reset displacement on mobile */
-  .drawer-left, .drawer-right { 
-    max-width: 85%; 
-    top: calc(48px + env(safe-area-inset-top, 0px)) !important;
-    height: calc(100% - 48px - env(safe-area-inset-top, 0px)) !important;
-    max-height: calc(100% - 48px - env(safe-area-inset-top, 0px)) !important;
+  .drawer-left, .drawer-right {
+    max-width: 85%;
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    top: 0 !important;
   }
   
   /* Narrow Screen Adaptation for Rules */
