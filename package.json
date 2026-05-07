@@ -1,6 +1,9 @@
 {
+<<<<<<< HEAD
   "name": "mulu",
   "version": "1.0.5",
+=======
+>>>>>>> c3c8df31b7e860053e3689eef0f82a0a89f3a481
   "scripts": {
     "build:dev": "webpack --mode development",
     "build": "webpack --mode production",
@@ -9,8 +12,12 @@
     "lint": "eslint",
     "lint:fix": "eslint --fix",
     "dump": "node dump_schema.ts",
+<<<<<<< HEAD
     "sync": "node tavern_sync.mjs",
     "deploy": "pnpm build && git add . && git commit -m \"deploy: fast update\" && git push"
+=======
+    "sync": "node tavern_sync.mjs"
+>>>>>>> c3c8df31b7e860053e3689eef0f82a0a89f3a481
   },
   "browserslist": [
     "defaults and partially supports es6-module"
